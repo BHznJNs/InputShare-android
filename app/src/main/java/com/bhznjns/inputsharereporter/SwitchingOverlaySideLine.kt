@@ -72,7 +72,7 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
             Direction.DOWN  -> Gravity.BOTTOM
         }
         setBackgroundColor(Color.TRANSPARENT)
-        setBackgroundColor(Color.RED)
+//        setBackgroundColor(Color.RED)
         requirePermission()
     }
 
