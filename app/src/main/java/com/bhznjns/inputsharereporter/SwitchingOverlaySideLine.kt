@@ -1,78 +1,92 @@
 package com.bhznjns.inputsharereporter
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.net.Uri
+import android.os.IBinder
 import android.provider.Settings
 import android.util.AttributeSet
-import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 
 enum class Direction {
-//    UP, DOWN,
-    RIGHT, LEFT
+    UP, DOWN,
+    RIGHT, LEFT,
 }
 
-@SuppressLint("ViewConstructor")
+@SuppressLint("ViewConstructor", "RtlHardcoded")
 class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction_: String?) : View(context, attrs) {
-    var direction: Direction
     var params: WindowManager.LayoutParams
-    var triggered = false
+    private var serviceBinder: TcpSocketServer.LocalBinder? = null
+    private var direction: Direction
+    private var isBound = false
+    private var triggered = false
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            serviceBinder = service as TcpSocketServer.LocalBinder
+            isBound = true
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            serviceBinder = null
+            isBound = false
+        }
+    }
 
     init {
+        Intent(context, TcpSocketServer::class.java).also {
+            context.startService(it)
+            context.bindService(it, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
+
         direction = parseDirection(direction_)
-        params = WindowManager.LayoutParams(
-            1,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT
-        )
-//        params = when (direction) {
-//            Direction.UP, Direction.DOWN -> WindowManager.LayoutParams(
-//                WindowManager.LayoutParams.MATCH_PARENT,
-//                1,
-//                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-//                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-//                PixelFormat.TRANSLUCENT
-//            )
-//            Direction.LEFT, Direction.RIGHT -> WindowManager.LayoutParams(
-//                1,
-//                WindowManager.LayoutParams.MATCH_PARENT,
-//                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-//                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-//                PixelFormat.TRANSLUCENT
-//            )
-//        }
+        params = when (direction) {
+            Direction.UP, Direction.DOWN -> WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                1,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            Direction.LEFT, Direction.RIGHT -> WindowManager.LayoutParams(
+                1,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            )
+        }
         params.gravity = when (direction) {
-            Direction.LEFT  -> Gravity.START
-            Direction.RIGHT -> Gravity.END
-//            Direction.UP    -> Gravity.TOP
-//            Direction.DOWN  -> Gravity.BOTTOM
+            Direction.LEFT  -> Gravity.LEFT
+            Direction.RIGHT -> Gravity.RIGHT
+            Direction.UP    -> Gravity.TOP
+            Direction.DOWN  -> Gravity.BOTTOM
         }
         setBackgroundColor(Color.TRANSPARENT)
-        //        setBackgroundColor(Color.RED)
+        setBackgroundColor(Color.RED)
         requirePermission()
     }
 
     override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
         if (event!!.action == MotionEvent.ACTION_HOVER_ENTER) {
-            Log.i("Mouse", "Entered");
+            if (!triggered && isBound) {
+                val data = byteArrayOf(SERVER_EVENT_TOGGLE.toByte())
+                serviceBinder!!.sendBytes(data)
+            }
             triggered = true
         } else
         if (event.action == MotionEvent.ACTION_HOVER_EXIT) {
             triggered = false
-            Log.i("Mouse", "Exited");
         }
-//        val x = event.x
-//        val y = event.y
-//        Log.d("Mouse Position", "X: $x, Y: $y")
         return super.onGenericMotionEvent(event)
     }
 
@@ -88,14 +102,11 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
     }
 
     private fun parseDirection(direction: String?): Direction {
-        if (direction == null) {
-            return Direction.LEFT
-        }
         return when (direction) {
-//            "up"    -> Direction.UP
-//            "down"  -> Direction.DOWN
+            "up"    -> Direction.UP
             "right" -> Direction.RIGHT
             "left"  -> Direction.LEFT
+            // "down"  -> Direction.DOWN
             else    -> Direction.LEFT
         }
     }
