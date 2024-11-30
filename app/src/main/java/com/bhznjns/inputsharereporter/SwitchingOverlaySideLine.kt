@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.util.AttributeSet
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -22,6 +23,7 @@ enum class Direction {
 
 @SuppressLint("ViewConstructor", "RtlHardcoded")
 class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction_: String?) : View(context, attrs) {
+    var isViewAdded = false
     private var params: WindowManager.LayoutParams
     private var serviceBinder: TcpSocketServer.LocalBinder? = null
     private var direction: Direction
@@ -80,6 +82,8 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
     fun launch() {
         val windowManager = context.getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager.addView(this, this.params)
+        isViewAdded = true
+        Log.i("OverlayView", "OverlayView added to WindowManager")
     }
 
     fun toggleEdgeTogglingEnabled(enabled: Boolean) {
@@ -87,19 +91,6 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
         if (!isBound) return
         val event = if (enabled) SERVER_EVENT_RESUME else SERVER_EVENT_PAUSE
         serviceBinder!!.sendEvent(event)
-    }
-
-    override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
-        if (event!!.action == MotionEvent.ACTION_HOVER_ENTER) {
-            if (!triggered && isBound && edgeTogglingEnabled) {
-                serviceBinder!!.sendEvent(SERVER_EVENT_TOGGLE)
-            }
-            triggered = true
-        } else
-        if (event.action == MotionEvent.ACTION_HOVER_EXIT) {
-            triggered = false
-        }
-        return super.onGenericMotionEvent(event)
     }
 
     private fun parseDirection(direction: String?): Direction {
@@ -110,5 +101,18 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
             "down"  -> Direction.DOWN
             else    -> Direction.LEFT
         }
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
+        if (event!!.action == MotionEvent.ACTION_HOVER_ENTER) {
+            if (!triggered && isBound && edgeTogglingEnabled) {
+                serviceBinder!!.sendEvent(SERVER_EVENT_TOGGLE)
+            }
+            triggered = true
+        } else
+            if (event.action == MotionEvent.ACTION_HOVER_EXIT) {
+                triggered = false
+            }
+        return super.onGenericMotionEvent(event)
     }
 }

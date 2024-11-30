@@ -164,7 +164,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (overlayView != null && windowManager != null) {
+        if (overlayView != null && overlayView!!.isViewAdded && windowManager != null) {
             windowManager.removeView(overlayView)
         }
     }
