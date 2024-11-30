@@ -9,7 +9,6 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.util.AttributeSet
-import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -83,7 +82,6 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
         val windowManager = context.getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager.addView(this, this.params)
         isViewAdded = true
-        Log.i("OverlayView", "OverlayView added to WindowManager")
     }
 
     fun toggleEdgeTogglingEnabled(enabled: Boolean) {
@@ -110,9 +108,9 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
             }
             triggered = true
         } else
-            if (event.action == MotionEvent.ACTION_HOVER_EXIT) {
-                triggered = false
-            }
+        if (event.action == MotionEvent.ACTION_HOVER_EXIT) {
+            triggered = false
+        }
         return super.onGenericMotionEvent(event)
     }
 }

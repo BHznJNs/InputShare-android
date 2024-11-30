@@ -9,7 +9,6 @@ import android.util.TypedValue
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.bhznjns.inputsharereporter.utils.I18n
@@ -21,9 +20,7 @@ class MainActivity : AppCompatActivity() {
     private var fab: ExtendedFloatingActionButton? = null
     private var overlayView: SwitchingOverlaySideLine? = null
     private var isFABExtended = true
-    private val requestOverlayPermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
-        if (Settings.canDrawOverlays(this)) overlayView!!.launch()
-    }
+    private var openPermissionRequestFlag = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)
@@ -48,7 +45,8 @@ class MainActivity : AppCompatActivity() {
         val goToSettingsClickListener = DialogInterface.OnClickListener { _, _ ->
             val requestPermissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             requestPermissionIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            requestOverlayPermissionLauncher.launch(requestPermissionIntent)
+            startActivity(requestPermissionIntent)
+            openPermissionRequestFlag = true
         }
         val canceledClickListener = DialogInterface.OnClickListener { _, _ ->
             Toast.makeText(this, I18n.choose(listOf(
@@ -159,6 +157,14 @@ class MainActivity : AppCompatActivity() {
         } else {
             fab!!.shrink()
             fab!!.setIconResource(R.drawable.pause_64)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (openPermissionRequestFlag && Settings.canDrawOverlays(this)) {
+            openPermissionRequestFlag = false
+            overlayView!!.launch()
         }
     }
 
