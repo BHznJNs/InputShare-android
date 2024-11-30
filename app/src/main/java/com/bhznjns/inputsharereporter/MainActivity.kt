@@ -1,43 +1,77 @@
 package com.bhznjns.inputsharereporter
 
+import android.content.DialogInterface
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.util.TypedValue
-import android.view.WindowManager
 import android.webkit.WebView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import java.util.Locale
+import com.bhznjns.inputsharereporter.utils.I18n
+import com.bhznjns.inputsharereporter.utils.MarkdownRenderer
+import com.google.android.material.color.DynamicColors
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 
 class MainActivity : AppCompatActivity() {
-    var overlayView: SwitchingOverlaySideLine? = null
+    private var fab: ExtendedFloatingActionButton? = null
+    private var overlayView: SwitchingOverlaySideLine? = null
+    private var isFABExtended = true
+    private val requestOverlayPermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { _ ->
+        if (Settings.canDrawOverlays(this)) overlayView!!.launch()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+
+        startOverlayView()
         renderShortcuts()
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
-
-        val intent = intent
-        val direction = intent.getStringExtra("direction")
-
-        overlayView = SwitchingOverlaySideLine(
-            this,
-            attrs = null,
-            direction_ = direction,
-        )
-        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        windowManager.addView(overlayView, overlayView!!.params)
+        setFABEventListener()
+        fab!!.performClick()
     }
 
-    fun renderShortcuts() {
+    private fun startOverlayView() {
+        val directionParam = intent.getStringExtra("direction")
+        overlayView = SwitchingOverlaySideLine(this, null, directionParam)
+        if (Settings.canDrawOverlays(this)) {
+            overlayView!!.launch()
+            return
+        }
+
+        val goToSettingsClickListener = DialogInterface.OnClickListener { _, _ ->
+            val requestPermissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            requestPermissionIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            requestOverlayPermissionLauncher.launch(requestPermissionIntent)
+        }
+        val canceledClickListener = DialogInterface.OnClickListener { _, _ ->
+            Toast.makeText(this, I18n.choose(listOf(
+                "Permission not granted. The application may not function properly",
+                "未授予权限，程序可能无法正常运行",
+            )), Toast.LENGTH_SHORT).show()
+        }
+
+        val dialogEN = AlertDialog.Builder(this)
+            .setTitle("Permission Missing")
+            .setMessage("The app requires overlay permission to function properly. Please enable this permission in the settings.")
+            .setPositiveButton("Go to Settings", goToSettingsClickListener)
+            .setNegativeButton("Cancel", canceledClickListener)
+        val dialogZH = AlertDialog.Builder(this)
+            .setTitle("权限缺失")
+            .setMessage("应用需要悬浮窗权限才能正常显示功能，请在设置中启用该权限。")
+            .setPositiveButton("去设置", goToSettingsClickListener)
+            .setNegativeButton("取消", canceledClickListener)
+
+        I18n.choose(listOf(dialogEN, dialogZH)).show()
+    }
+
+    private fun renderShortcuts() {
         val shortcutsEN = "The shortcuts following are available after connection:\n" +
                 "\n" +
                 "| Shortcut | Description |\n" +
@@ -70,7 +104,7 @@ class MainActivity : AppCompatActivity() {
                 "\n" +
                 "| 快捷键 | 功能描述 |\n" +
                 "| --- | --- |\n" +
-                "| `<Ctrl>+<Alt>+s` | 在你的电脑和 Android 设备间切换控制 |\n" +
+                "| `<Ctrl>+<Alt>+s` | 切换控制 |\n" +
                 "| `<Ctrl>+<Alt>+q` | 退出程序 |\n" +
                 "| `F1` | 多任务切换 |\n" +
                 "| `F2` | 回到桌面 |\n" +
@@ -103,20 +137,35 @@ class MainActivity : AppCompatActivity() {
         webview.setBackgroundColor(backgroundColor)
 
         // render shortcuts
-        val targetShortcuts = when (Locale.getDefault().language) {
-            "en" -> shortcutsEN
-            "zh" -> shortcutsZH
-            else -> shortcutsEN
-        }
+        val targetShortcuts = I18n.choose(listOf(shortcutsEN, shortcutsZH))
         val html = MarkdownRenderer().renderMarkdown(targetShortcuts)
         webview.loadData(html, "text/html", "UTF-8")
+    }
+
+    private fun setFABEventListener() {
+        fab = findViewById(R.id.fab)
+        fab!!.setOnClickListener {
+            val isEdgeTogglingEnabled = isFABExtended
+            overlayView!!.toggleEdgeTogglingEnabled(isEdgeTogglingEnabled)
+            toggleIsExtended(!isFABExtended)
+        }
+    }
+
+    private fun toggleIsExtended(toBeExtended: Boolean) {
+        isFABExtended = toBeExtended
+        if (toBeExtended) {
+            fab!!.extend()
+            fab!!.setIconResource(R.drawable.play_64)
+        } else {
+            fab!!.shrink()
+            fab!!.setIconResource(R.drawable.pause_64)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         if (overlayView != null && windowManager != null) {
             windowManager.removeView(overlayView)
-            overlayView = null
         }
     }
 }

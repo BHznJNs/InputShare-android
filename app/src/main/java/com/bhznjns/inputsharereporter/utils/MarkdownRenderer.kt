@@ -1,4 +1,4 @@
-package com.bhznjns.inputsharereporter
+package com.bhznjns.inputsharereporter.utils
 
 import org.commonmark.Extension
 import org.commonmark.ext.gfm.tables.TablesExtension
@@ -16,7 +16,8 @@ class MarkdownRenderer {
                 "body { margin: 2rem 1rem; user-select: none; }" +
                 "p { font-size: 1.125rem; }" +
                 "div { width: fit-content; margin: 0 auto; }" +
-                "table { border-collapse: collapse; border: 1px solid rgba(0, 0, 0, .15);" +
+                "table { min-width: 60vw; border-collapse: collapse;" +
+                        "border: 1px solid rgba(0, 0, 0, .15);" +
                         "box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }" +
                 "tbody { border-top: 1px solid rgb(231, 231, 231); }" +
                 "th, td { padding: 12px 24px; text-align: left; }" +

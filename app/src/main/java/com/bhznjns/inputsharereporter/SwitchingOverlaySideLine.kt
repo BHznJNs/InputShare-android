@@ -7,14 +7,13 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.net.Uri
 import android.os.IBinder
-import android.provider.Settings
 import android.util.AttributeSet
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import androidx.appcompat.app.AppCompatActivity.WINDOW_SERVICE
 
 enum class Direction {
     UP, DOWN,
@@ -23,18 +22,22 @@ enum class Direction {
 
 @SuppressLint("ViewConstructor", "RtlHardcoded")
 class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction_: String?) : View(context, attrs) {
-    var params: WindowManager.LayoutParams
+    private var params: WindowManager.LayoutParams
     private var serviceBinder: TcpSocketServer.LocalBinder? = null
     private var direction: Direction
     private var isBound = false
     private var triggered = false
-
+    private var edgeTogglingEnabled = true
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             serviceBinder = service as TcpSocketServer.LocalBinder
             isBound = true
+            serviceBinder!!.registerCallback(object: ServiceCallback {
+                override fun getEdgeTogglingEnabled(): Boolean {
+                    return edgeTogglingEnabled
+                }
+            })
         }
-
         override fun onServiceDisconnected(name: ComponentName) {
             serviceBinder = null
             isBound = false
@@ -72,15 +75,24 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
             Direction.DOWN  -> Gravity.BOTTOM
         }
         setBackgroundColor(Color.TRANSPARENT)
-//        setBackgroundColor(Color.RED)
-        requirePermission()
+    }
+
+    fun launch() {
+        val windowManager = context.getSystemService(WINDOW_SERVICE) as WindowManager
+        windowManager.addView(this, this.params)
+    }
+
+    fun toggleEdgeTogglingEnabled(enabled: Boolean) {
+        edgeTogglingEnabled = enabled
+        if (!isBound) return
+        val event = if (enabled) SERVER_EVENT_RESUME else SERVER_EVENT_PAUSE
+        serviceBinder!!.sendEvent(event)
     }
 
     override fun onGenericMotionEvent(event: MotionEvent?): Boolean {
         if (event!!.action == MotionEvent.ACTION_HOVER_ENTER) {
-            if (!triggered && isBound) {
-                val data = byteArrayOf(SERVER_EVENT_TOGGLE.toByte())
-                serviceBinder!!.sendBytes(data)
+            if (!triggered && isBound && edgeTogglingEnabled) {
+                serviceBinder!!.sendEvent(SERVER_EVENT_TOGGLE)
             }
             triggered = true
         } else
@@ -90,23 +102,12 @@ class SwitchingOverlaySideLine(context: Context, attrs: AttributeSet?, direction
         return super.onGenericMotionEvent(event)
     }
 
-    private fun requirePermission() {
-        if (!Settings.canDrawOverlays(context)) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:" + context.packageName)
-            )
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-        }
-    }
-
     private fun parseDirection(direction: String?): Direction {
         return when (direction) {
             "up"    -> Direction.UP
             "right" -> Direction.RIGHT
             "left"  -> Direction.LEFT
-            // "down"  -> Direction.DOWN
+            "down"  -> Direction.DOWN
             else    -> Direction.LEFT
         }
     }
