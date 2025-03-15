@@ -17,9 +17,7 @@ import com.google.android.material.color.DynamicColors
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 
 class MainActivity : AppCompatActivity() {
-    private var fab: ExtendedFloatingActionButton? = null
     private var overlayView: SwitchingOverlaySideLine? = null
-    private var isFABExtended = true
     private var openPermissionRequestFlag = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,8 +28,7 @@ class MainActivity : AppCompatActivity() {
 
         startOverlayView()
         renderShortcuts()
-        setFABEventListener()
-        fab!!.performClick()
+        setupFab()
     }
 
     private fun startOverlayView() {
@@ -140,24 +137,20 @@ class MainActivity : AppCompatActivity() {
         webview.loadData(html, "text/html", "UTF-8")
     }
 
-    private fun setFABEventListener() {
-        fab = findViewById(R.id.fab)
-        fab!!.setOnClickListener {
-            val isEdgeTogglingEnabled = isFABExtended
-            overlayView!!.toggleEdgeTogglingEnabled(isEdgeTogglingEnabled)
-            toggleIsExtended(!isFABExtended)
-        }
-    }
+    private fun setupFab() {
+        val fab = findViewById<ExtendedFloatingActionButton>(R.id.fab)
+        fab?.apply {
+            isExtended = true
+            setIconResource(R.drawable.play_64)
 
-    private fun toggleIsExtended(toBeExtended: Boolean) {
-        isFABExtended = toBeExtended
-        if (toBeExtended) {
-            fab!!.extend()
-            fab!!.setIconResource(R.drawable.play_64)
-        } else {
-            fab!!.shrink()
-            fab!!.setIconResource(R.drawable.pause_64)
+            setOnClickListener {
+                isExtended = !isExtended
+                val icon = if (isExtended) R.drawable.play_64 else R.drawable.pause_64
+                setIconResource(icon)
+                if (isExtended) extend() else shrink()
+            }
         }
+        fab?.performClick()
     }
 
     override fun onResume() {
