@@ -2,4 +2,5 @@
     <string name="app_name">InputShare</string>
     <string name="toggle">Toggle</string>
     <string name="enable_edge_toggling">Enable edge toggling</string>
+    <string name="accessibility_service_label" >InputShare Edge Toggling</string>
 </resources>

@@ -3,4 +3,5 @@
     <string name="app_name">输入流转</string>
     <string name="toggle">切换</string>
     <string name="enable_edge_toggling">启用贴边切换</string>
+    <string name="accessibility_service_label">输入流转贴边切换</string>
 </resources>

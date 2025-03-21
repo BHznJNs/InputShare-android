@@ -17,16 +17,12 @@ import java.util.concurrent.Executors
 
 const val SERVER_EVENT_KEEPALIVE = 0x00
 const val SERVER_EVENT_TOGGLE    = 0x01
-const val SERVER_EVENT_PAUSE     = 0x02
-const val SERVER_EVENT_RESUME    = 0x03
+//const val SERVER_EVENT_PAUSE     = 0x02
+//const val SERVER_EVENT_RESUME    = 0x03
 
 const val SERVER_PORT = 61625
 const val KEEPALIVE_INTERVAL_MS = 4000L
 const val RETRY_INTERVAL_MS = 1000L
-
-interface ServiceCallback {
-    fun getEdgeTogglingEnabled(): Boolean
-}
 
 class TcpSocketServer: Service() {
     private val executor = Executors.newFixedThreadPool(2)
@@ -35,16 +31,6 @@ class TcpSocketServer: Service() {
     private var clientSocket: Socket? = null
     private var outputStream: OutputStream? = null
     private var isRunning = false
-
-    override fun onCreate() {
-        super.onCreate()
-        startServer()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        stopServer(false)
-    }
 
     private fun startServer() {
         isRunning = true
@@ -61,11 +47,6 @@ class TcpSocketServer: Service() {
                     "PC client connected.",
                     "电脑端已连接。",
                 )), Toast.LENGTH_SHORT).show() }
-
-                // send current edge-toggling state
-                val enabled = this.callback?.getEdgeTogglingEnabled()
-                val event = if (enabled == true || enabled == null) SERVER_EVENT_RESUME else SERVER_EVENT_PAUSE
-                sendEvent(event)
 
                 startHeartbeat()
             } catch (e: Exception) {
@@ -113,11 +94,6 @@ class TcpSocketServer: Service() {
             clientSocket?.close()
             serverSocket?.close()
             Log.i("Server", "Server stopped")
-
-            uiHandler.post { Toast.makeText(this, I18n.choose(listOf(
-                "PC client disconnected.",
-                "电脑端已断开连接。",
-            )), Toast.LENGTH_SHORT).show() }
         } catch (e: Exception) {
             Log.e("Server", "Server stopping error: ${e.message}")
         } finally {
@@ -126,27 +102,41 @@ class TcpSocketServer: Service() {
             outputStream = null
         }
 
-        if (retry) {
-            Thread.sleep(RETRY_INTERVAL_MS)
-            startServer()
-        }
+        if (!retry) return
+        // when need to reconnect, show the disconnected message
+        uiHandler.post { Toast.makeText(this, I18n.choose(listOf(
+            "PC client disconnected.",
+            "电脑端已断开连接。",
+        )), Toast.LENGTH_SHORT).show() }
+        Thread.sleep(RETRY_INTERVAL_MS)
+        startServer()
     }
 
-    private val binder = LocalBinder()
-    private var callback: ServiceCallback? = null
+    override fun onCreate() {
+        super.onCreate()
+        startServer()
+    }
 
+    override fun onDestroy() {
+        stopServer(false)
+        super.onDestroy()
+    }
+
+    /* Codes for bind to this service */
+    private val binder = LocalBinder()
     inner class LocalBinder : Binder() {
         fun sendEvent(event: Int) {
             executor.execute {
                 this@TcpSocketServer.sendEvent(event)
             }
         }
-        fun registerCallback(callback: ServiceCallback) {
-            this@TcpSocketServer.callback = callback
-        }
     }
-
     override fun onBind(intent: Intent?): IBinder {
         return binder
+    }
+    override fun onUnbind(intent: Intent?): Boolean {
+        stopServer(false)
+        stopSelf()
+        return super.onUnbind(intent)
     }
 }

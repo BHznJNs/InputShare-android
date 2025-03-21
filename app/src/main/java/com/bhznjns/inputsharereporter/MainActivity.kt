@@ -1,128 +1,53 @@
 package com.bhznjns.inputsharereporter
 
-import android.content.DialogInterface
 import android.content.Intent
-import android.net.Uri
+import android.content.res.Configuration
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.util.TypedValue
+import android.view.accessibility.AccessibilityManager
 import android.webkit.WebView
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.bhznjns.inputsharereporter.utils.I18n
 import com.bhznjns.inputsharereporter.utils.MarkdownRenderer
+import com.bhznjns.inputsharereporter.utils.PREFERENCE_FILE_NAME
+import com.bhznjns.inputsharereporter.utils.getAccessibilityServiceEnabled
+import com.bhznjns.inputsharereporter.utils.targetShortcuts
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 
 class MainActivity : AppCompatActivity() {
-    private var overlayView: SwitchingOverlaySideLine? = null
-    private var openPermissionRequestFlag = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        startOverlayView()
+        setDirectionPref()
         renderShortcuts()
         setupFab()
     }
 
-    private fun startOverlayView() {
-        val directionParam = intent.getStringExtra("direction")
-        overlayView = SwitchingOverlaySideLine(this, null, directionParam)
-        if (Settings.canDrawOverlays(this)) {
-            overlayView!!.launch()
-            return
-        }
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        Log.d("MainActivity", "Received new intent.")
+        setIntent(intent)
+        setDirectionPref()
+        val actionIntent = Intent(OverlayService.ACTION_RESET_DIRECTION)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(actionIntent)
+    }
 
-        val goToSettingsClickListener = DialogInterface.OnClickListener { _, _ ->
-            val requestPermissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-            requestPermissionIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            startActivity(requestPermissionIntent)
-            openPermissionRequestFlag = true
-        }
-        val canceledClickListener = DialogInterface.OnClickListener { _, _ ->
-            Toast.makeText(this, I18n.choose(listOf(
-                "Permission not granted. The application may not function properly",
-                "未授予权限，程序可能无法正常运行",
-            )), Toast.LENGTH_SHORT).show()
-        }
-
-        val dialogEN = AlertDialog.Builder(this)
-            .setTitle("Permission Missing")
-            .setMessage("The app requires overlay permission to function properly. Please enable this permission in the settings.")
-            .setPositiveButton("Go to Settings", goToSettingsClickListener)
-            .setNegativeButton("Cancel", canceledClickListener)
-        val dialogZH = AlertDialog.Builder(this)
-            .setTitle("权限缺失")
-            .setMessage("应用需要悬浮窗权限才能正常显示功能，请在设置中启用该权限。")
-            .setPositiveButton("去设置", goToSettingsClickListener)
-            .setNegativeButton("取消", canceledClickListener)
-
-        I18n.choose(listOf(dialogEN, dialogZH)).show()
+    override fun onConfigurationChanged(p0: Configuration) {
+        // prevent activity refreshing after UHID state changed
+        Log.d("MainActivity", "Configuration changed.")
+        super.onConfigurationChanged(p0)
     }
 
     private fun renderShortcuts() {
-        val shortcutsEN = "The shortcuts following are available after connection:\n" +
-                "\n" +
-                "| Shortcut | Description |\n" +
-                "| --- | --- |\n" +
-                "| `<Ctrl>+<Alt>+s` | Toggle the sharing state |\n" +
-                "| `<Ctrl>+<Alt>+q` | Quit the program |\n" +
-                "| `F1` | Multi-task switching |\n" +
-                "| `F2` | Return to Home |\n" +
-                "| `F3` | Back |\n" +
-                "| `F4` | Previous Media |\n" +
-                "| `F5` | Play / Pause Media |\n" +
-                "| `F6` | Next Media |\n" +
-                "| `F7` | Volume Down |\n" +
-                "| `F8` | Volume Up |\n" +
-                "| `F9` | Brightness Down |\n" +
-                "| `F10` | Brightness Up |\n" +
-                "| `F11` | Screen Sleep |\n" +
-                "| `F12` | Wake Up |\n" +
-                "\n" +
-                "The shortcuts following are available after connection and not sharing:\n" +
-                "\n" +
-                "| Shortcut | Description |\n" +
-                "| --- | --- |\n" +
-                "| `<Alt>+UP` | Scroll Up |\n" +
-                "| `<Alt>+DOWN` | Scroll Down |\n" +
-                "| `<Alt>+[` | Previous Media |\n" +
-                "| `<Alt>+]` | Next Media |\n" +
-                "| `<Alt>+\\` | Play / Pause Media |"
-        val shortcutsZH = "下面的快捷键在你连接设备完成后可用：\n" +
-                "\n" +
-                "| 快捷键 | 功能描述 |\n" +
-                "| --- | --- |\n" +
-                "| `<Ctrl>+<Alt>+s` | 切换控制 |\n" +
-                "| `<Ctrl>+<Alt>+q` | 退出程序 |\n" +
-                "| `F1` | 多任务切换 |\n" +
-                "| `F2` | 回到桌面 |\n" +
-                "| `F3` | 返回 |\n" +
-                "| `F4` | 上一首歌曲 |\n" +
-                "| `F5` | 播放 / 暂停 歌曲 |\n" +
-                "| `F6` | 下一首歌曲 |\n" +
-                "| `F7` | 降低音量 |\n" +
-                "| `F8` | 提升音量 |\n" +
-                "| `F9` | 降低亮度 |\n" +
-                "| `F10` | 提升亮度 |\n" +
-                "| `F11` | 熄屏 |\n" +
-                "| `F12` | 亮屏 |\n" +
-                "\n" +
-                "下面的快捷键在你连接设备完成后且没有共享输入时可用：\n" +
-                "\n" +
-                "| 快捷键 | 功能描述 |\n" +
-                "| --- | --- |\n" +
-                "| `<Alt>+UP` | 向上滚动 |\n" +
-                "| `<Alt>+DOWN` | 向下滚动 |\n" +
-                "| `<Alt>+[` | 上一首歌曲 |\n" +
-                "| `<Alt>+]` | 下一首歌曲 |\n" +
-                "| `<Alt>+\\` | 播放 / 暂停 歌曲 |"
         val webview = findViewById<WebView>(R.id.webview)
 
         // set webview background color
@@ -132,39 +57,69 @@ class MainActivity : AppCompatActivity() {
         webview.setBackgroundColor(backgroundColor)
 
         // render shortcuts
-        val targetShortcuts = I18n.choose(listOf(shortcutsEN, shortcutsZH))
         val html = MarkdownRenderer().renderMarkdown(targetShortcuts)
         webview.loadData(html, "text/html", "UTF-8")
     }
 
     private fun setupFab() {
-        val fab = findViewById<ExtendedFloatingActionButton>(R.id.fab)
-        fab?.apply {
-            isExtended = true
-            setIconResource(R.drawable.play_64)
+        fun getIconFromState(isExtended: Boolean): Int {
+            return if (isExtended) R.drawable.play_64 else R.drawable.stop_64
+        }
 
-            setOnClickListener {
-                isExtended = !isExtended
-                val icon = if (isExtended) R.drawable.play_64 else R.drawable.pause_64
-                setIconResource(icon)
-                if (isExtended) extend() else shrink()
+        val fab = findViewById<ExtendedFloatingActionButton>(R.id.fab)
+        fab.isExtended = !isAccessibilityServiceEnabled
+        fab.setOnClickListener {
+            if (fab.isExtended) {
+                showAccessibilityServiceDialog()
+            } else {
+                // send stop intent
+                val actionIntent = Intent(OverlayService.ACTION_STOP_SERVICE)
+                LocalBroadcastManager.getInstance(this).sendBroadcast(actionIntent)
             }
         }
-        fab?.performClick()
-    }
+        if (!isAccessibilityServiceEnabled)
+            fab.performClick()
 
-    override fun onResume() {
-        super.onResume()
-        if (openPermissionRequestFlag && Settings.canDrawOverlays(this)) {
-            openPermissionRequestFlag = false
-            overlayView!!.launch()
+        // set Accessibility Change Event Listener
+        val accessibilityManager = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
+        accessibilityManager.addAccessibilityStateChangeListener {
+            val accessibilityState = isAccessibilityServiceEnabled
+            Log.i("AccessibilityState", "Accessibility state changed: $accessibilityState")
+            val toBeExtended = !accessibilityState
+            fab.setIconResource(getIconFromState(toBeExtended))
+            if (toBeExtended) fab.extend() else fab.shrink()
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (overlayView != null && overlayView!!.isViewAdded && windowManager != null) {
-            windowManager.removeView(overlayView)
+    private fun setDirectionPref() {
+        val paramName = "direction"
+        val directionParam = intent.getStringExtra(paramName)
+        Log.d("MainActivity", "Direction param: $directionParam")
+
+        if (directionParam == null) return
+        val sharedPref = getSharedPreferences(PREFERENCE_FILE_NAME, MODE_PRIVATE)
+        with (sharedPref.edit()) {
+            putString(paramName, directionParam)
+            apply()
         }
     }
+
+    private fun showAccessibilityServiceDialog() {
+        if (isAccessibilityServiceEnabled) return
+        AlertDialog.Builder(this)
+            .setTitle(I18n.choose(listOf("Enable Service","启用无障碍服务")))
+            .setMessage(I18n.choose(listOf(
+                "To use the features of this application properly, please enable the accessibility service in the settings.",
+                "为了正常使用本应用的功能，请在设置中启用无障碍服务。")))
+            .setPositiveButton(I18n.choose(listOf("Confirm", "确定"))) { _, _ ->
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                startActivity(intent)
+            }
+            .setNegativeButton(I18n.choose(listOf("Cancel", "取消")), null)
+            .setCancelable(false)
+            .show()
+    }
+
+    private val isAccessibilityServiceEnabled: Boolean
+        get() = getAccessibilityServiceEnabled(this, OverlayService.SERVICE_NAME)
 }
