@@ -3,6 +3,8 @@ package com.bhznjns.inputsharereporter
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
@@ -27,7 +29,9 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
+        Log.d("MainActivity", "Initialized.")
         setDirectionPref()
+        setDebugPref()
         renderShortcuts()
         setupFab()
     }
@@ -37,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "Received new intent.")
         setIntent(intent)
         setDirectionPref()
+        setDebugPref()
         val actionIntent = Intent(OverlayService.ACTION_RESET_DIRECTION)
         LocalBroadcastManager.getInstance(this).sendBroadcast(actionIntent)
     }
@@ -62,13 +67,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupFab() {
-        fun getIconFromState(isExtended: Boolean): Int {
-            return if (isExtended) R.drawable.play_64 else R.drawable.stop_64
-        }
+        fun getIconFromState(isExtended: Boolean): Int =
+            if (isExtended) R.drawable.play_64 else R.drawable.stop_64
 
         val fab = findViewById<ExtendedFloatingActionButton>(R.id.fab)
         fab.isExtended = !isAccessibilityServiceEnabled
         fab.setOnClickListener {
+            Log.d("MainActivity", "FAB clicked, isExtended: ${fab.isExtended}")
             if (fab.isExtended) {
                 showAccessibilityServiceDialog()
             } else {
@@ -83,11 +88,25 @@ class MainActivity : AppCompatActivity() {
         // set Accessibility Change Event Listener
         val accessibilityManager = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
         accessibilityManager.addAccessibilityStateChangeListener {
-            val accessibilityState = isAccessibilityServiceEnabled
-            Log.i("AccessibilityState", "Accessibility state changed: $accessibilityState")
-            val toBeExtended = !accessibilityState
-            fab.setIconResource(getIconFromState(toBeExtended))
-            if (toBeExtended) fab.extend() else fab.shrink()
+            Handler(Looper.getMainLooper()).postDelayed({
+                val accessibilityState = isAccessibilityServiceEnabled
+                Log.i("AccessibilityState", "Accessibility state changed: $accessibilityState")
+                val toBeExtended = !accessibilityState
+                fab.setIconResource(getIconFromState(toBeExtended))
+                if (toBeExtended) fab.extend() else fab.shrink()
+            }, 500)
+        }
+    }
+
+    private fun setDebugPref() {
+        val paramName = "is-debug"
+        val isDebugParam = intent.getBooleanExtra(paramName, false)
+        Log.d("MainActivity", "Debug param: $isDebugParam")
+
+        val sharedPref = getSharedPreferences(PREFERENCE_FILE_NAME, MODE_PRIVATE)
+        with (sharedPref.edit()) {
+            putBoolean(paramName, isDebugParam)
+            apply()
         }
     }
 

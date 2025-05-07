@@ -3,6 +3,7 @@ package com.bhznjns.inputsharereporter
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Context.WINDOW_SERVICE
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.util.AttributeSet
 import android.util.Log
@@ -21,6 +22,11 @@ class SideLineOverlay : View {
     constructor(context: Context) : super(context)
     constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
     constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
+
+    fun setIsDebug(isDebug: Boolean): SideLineOverlay {
+        if (isDebug) this.setBackgroundColor(Color.RED)
+        return this
+    }
 
     fun setDirection(direction: String?): SideLineOverlay {
         val direction = parseDirection(direction)

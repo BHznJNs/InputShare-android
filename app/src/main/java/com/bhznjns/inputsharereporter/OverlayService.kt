@@ -88,10 +88,12 @@ class OverlayService : AccessibilityService() {
     private fun startOverlay() {
         // get direction param from sharedPreference
         val sharedPref = getSharedPreferences(PREFERENCE_FILE_NAME, MODE_PRIVATE)
+        val isDebugParam = sharedPref.getBoolean("is-debug", false)
         val directionParam = sharedPref.getString("direction", "DEFAULT")!!
         Log.i("AccessibilityService", "Parameter from SharedPreferences: $directionParam")
 
         overlay = SideLineOverlay(this)
+            .setIsDebug(isDebugParam)
             .setDirection(directionParam)
             .setTriggeredCallback { tcpSocketServerBinder?.sendEvent(SERVER_EVENT_TOGGLE) }
         overlay.launch()
