@@ -33,22 +33,22 @@ class OverlayService : AccessibilityService() {
         }
     }
 
-    private var tcpSocketServerBinder: TcpSocketServer.LocalBinder? = null
+    private var reporterServerBinder: ReporterServer.LocalBinder? = null
     private var isServiceBound = false
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
-            tcpSocketServerBinder = service as TcpSocketServer.LocalBinder
+            reporterServerBinder = service as ReporterServer.LocalBinder
             isServiceBound = true
             Log.i("OverlayService", "TCP server service connected")
         }
         override fun onServiceDisconnected(className: ComponentName) {
-            tcpSocketServerBinder = null
+            reporterServerBinder = null
             isServiceBound = false
             Log.i("OverlayService", "TCP server service disconnected")
 
             // try to rebind
             Handler(Looper.getMainLooper()).postDelayed({
-                startTcpServer()
+                startReporterServer()
             }, 2000)
         }
     }
@@ -64,7 +64,7 @@ class OverlayService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         startOverlay()
-        startTcpServer()
+        startReporterServer()
     }
 
     override fun onDestroy() {
@@ -74,13 +74,13 @@ class OverlayService : AccessibilityService() {
         overlay.close()
         if (isServiceBound) {
             unbindService(serviceConnection)
-            tcpSocketServerBinder = null
+            reporterServerBinder = null
             isServiceBound = false
         }
     }
 
-    private fun startTcpServer() {
-        val serviceIntent = Intent(this, TcpSocketServer::class.java)
+    private fun startReporterServer() {
+        val serviceIntent = Intent(this, ReporterServer::class.java)
         bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
@@ -95,7 +95,7 @@ class OverlayService : AccessibilityService() {
         overlay = SideLineOverlay(this)
             .setIsDebug(isDebugParam)
             .setDirection(directionParam)
-            .setTriggeredCallback { tcpSocketServerBinder?.sendEvent(SERVER_EVENT_TOGGLE) }
+            .setTriggeredCallback { reporterServerBinder?.sendEvent(SERVER_EVENT_TOGGLE) }
         overlay.launch()
     }
 
