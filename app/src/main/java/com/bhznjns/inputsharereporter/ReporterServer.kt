@@ -45,7 +45,6 @@ class ReporterServer : Service() {
                 serverSocket = LocalServerSocket(ABSTRACT_SOCKET_NAME)
                 Log.i("ReporterServer", "Server started on abstract address: localabstract:$ABSTRACT_SOCKET_NAME")
 
-                // Accept client connection (this is a blocking call)
                 clientSocket = serverSocket?.accept()
                 Log.i("ReporterServer", "Client connected")
                 outputStream = clientSocket?.outputStream
@@ -83,9 +82,6 @@ class ReporterServer : Service() {
         if (outputStream == null || clientSocket == null || !clientSocket!!.isConnected) {
             Log.e("ReporterServer", "Client is not connected or socket is closed.")
             // If sending fails, assume connection is lost and stop/retry server
-            if (isRunning.get()) {
-                stopServer(true)
-            }
             return false
         }
 
@@ -95,16 +91,10 @@ class ReporterServer : Service() {
         } catch (e: IOException) {
             // Catch IOException for write/flush errors, indicating connection issue
             Log.e("ReporterServer", "Server sending data error: ${e.message}")
-            if (isRunning.get()) {
-                stopServer(true) // Retry connection on send error
-            }
             return false
         } catch (e: Exception) {
             // Catch other potential exceptions
             Log.e("ReporterServer", "Unexpected sending data error: ${e.message}")
-            if (isRunning.get()) {
-                stopServer(true) // Retry connection on send error
-            }
             return false
         }
         return true
@@ -124,11 +114,25 @@ class ReporterServer : Service() {
                     break
                 }
             }
+            stopServer(true)
             Log.d("ReporterServer", "Heartbeat loop finished.")
         }
     }
 
     private fun stopServer(retry: Boolean) {
+        fun stopExecutor() {
+            executor.shutdownNow()
+            try {
+                // Wait a bit for tasks to terminate
+                if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
+                    Log.w("ReporterServer", "Executor did not terminate in time.")
+                }
+            } catch (e: InterruptedException) {
+                Log.e("ReporterServer", "Interrupted while waiting for executor termination.")
+                Thread.currentThread().interrupt() // Restore interrupt flag
+            }
+        }
+
         // Use compareAndSet to ensure only one thread stops the server
         if (!isRunning.compareAndSet(true, false)) {
             Log.w("ReporterServer", "Server is already stopping or stopped.")
@@ -138,6 +142,7 @@ class ReporterServer : Service() {
         Log.i("ReporterServer", "Attempting to stop server...")
         try {
             // Closing LocalSocket will likely cause read/write operations on it to throw IOException
+            outputStream?.close()
             clientSocket?.close()
             serverSocket?.close()
             Log.i("ReporterServer", "Server socket resources closed.")
@@ -151,27 +156,18 @@ class ReporterServer : Service() {
             outputStream = null
         }
 
-        // Shutdown executor gracefully
-        executor.shutdownNow()
-        try {
-            // Wait a bit for tasks to terminate
-            if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
-                Log.w("ReporterServer", "Executor did not terminate in time.")
-            }
-        } catch (e: InterruptedException) {
-            Log.e("ReporterServer", "Interrupted while waiting for executor termination.")
-            Thread.currentThread().interrupt() // Restore interrupt flag
+        if (!retry) {
+            stopExecutor()
+            Log.i("ReporterServer", "Server fully stopped (no retry).")
+            return
         }
 
-        if (!retry) Log.i("ReporterServer", "Server fully stopped (no retry).")
-        // when need to reconnect, show the disconnected message
         uiHandler.post { Toast.makeText(this, I18n.choose(listOf(
             "PC client disconnected.",
             "电脑端已断开连接。",
         )), Toast.LENGTH_SHORT).show() }
-
         uiHandler.postDelayed({
-            Log.i("ReporterServer", "Attempting to restart server after delay...")
+            Log.i("ReporterServer", "Attempting to restart server...")
             startServer()
         }, RETRY_INTERVAL_MS)
     }
@@ -193,7 +189,8 @@ class ReporterServer : Service() {
     inner class LocalBinder : Binder() {
         fun sendEvent(event: Int) {
             executor.execute {
-                this@ReporterServer.sendEvent(event)
+                val ret = this@ReporterServer.sendEvent(event)
+                if (!ret) stopServer(true)
             }
         }
     }
